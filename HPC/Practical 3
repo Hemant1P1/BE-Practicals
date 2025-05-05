@@ -1,124 +1,46 @@
-//3 min max
-#include <omp.h>
-#include <iostream>
-#include <chrono>
-#include <algorithm>
-using namespace std;
-using namespace std::chrono;
-void performOperations(int nums[], int length) {
-    int minValue = nums[0], maxValue = nums[0], sum = 0;
-
-#pragma omp parallel for reduction(min : minValue) reduction(max : maxValue) reduction(+ : sum)
-    for (int i = 0; i < length; i++) {
-        minValue = min(minValue, nums[i]);
-        maxValue = max(maxValue, nums[i]);
-        sum += nums[i];
-    }
-    cout << "Min value: " << minValue << endl;
-    cout << "Max value: " << maxValue << endl;
-    cout << "Sum: " << sum << endl;
-    cout << "Average: " << static_cast<float>(sum) / length << endl;
-}
-int main() {
-    int length;
-    cout << "Enter the number of elements: ";
-    cin >> length;
-
-    int* nums = new int[length];
-    cout << "Enter " << length << " elements:\n";
-    for (int i = 0; i < length; i++) {
-        cin >> nums[i];
-    }
-    auto start = high_resolution_clock::now();
-    cout << "\nNums: [";
-    for (int i = 0; i < length; i++) 
-        cout << nums[i] << (i < length - 1 ? ", " : "");
-    cout << "]\n";
-    performOperations(nums, length);
-    auto stop = high_resolution_clock::now();
-    cout << "\nExecution time: " << duration_cast<microseconds>(stop - start).count() << " microseconds\n";
-    delete[] nums;
-    return 0;
-}// vector add  .cu
-#include <stdio.h>
-
-_global_ void vecAdd(float *A, float *B, float *C, int N) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < N)
-        C[i] = A[i] + B[i];
-}
-int main() {
-    int N = 5;
-    size_t size = N * sizeof(float);
-    float A[] = {1, 2, 3, 4, 5};
-    float B[] = {10, 20, 30, 40, 50};
-    float C[5];
-
-    float *d_A, *d_B, *d_C;
-    cudaMalloc(&d_A, size);
-    cudaMalloc(&d_B, size);
-    cudaMalloc(&d_C, size);
-
-    cudaMemcpy(d_A, A, size, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_B, B, size, cudaMemcpyHostToDevice);
-
-    vecAdd<<<1, N>>>(d_A, d_B, d_C, N);
-
-    cudaMemcpy(C, d_C, size, cudaMemcpyDeviceToHost);
-
-    printf("Result Vector C:\n");
-    for (int i = 0; i < N; i++)
-        printf("%f ", C[i]);
-    printf("\n");
-
-    cudaFree(d_A);
-    cudaFree(d_B);
-    cudaFree(d_C);
-    return 0;
-}
-// matrix_mul.cu
-#include <stdio.h>
-
-_global_ void matMul(float *A, float *B, float *C, int N) {
-    int row = blockIdx.y * blockDim.y + threadIdx.y;
-    int col = blockIdx.x * blockDim.x + threadIdx.x;
-    if (row < N && col < N) {
-        float sum = 0;
-        for (int k = 0; k < N; k++)
-            sum += A[row * N + k] * B[k * N + col];
-        C[row * N + col] = sum;
-    }
-}
+#include <iostream>    
+#include <omp.h>       
+#include <climits>     
 
 int main() {
-    int N = 2;  // 2x2 matrix for simplicity
-    size_t size = N * N * sizeof(float);
-    float A[] = {1, 2, 3, 4};
-    float B[] = {5, 6, 7, 8};
-    float C[4];
+    
+    int arr[] = {10, 20, 5, 30, 15, 25, 2, 40};
 
-    float *d_A, *d_B, *d_C;
-    cudaMalloc(&d_A, size);
-    cudaMalloc(&d_B, size);
-    cudaMalloc(&d_C, size);
+    
+    int n = sizeof(arr) / sizeof(arr[0]);
 
-    cudaMemcpy(d_A, A, size, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_B, B, size, cudaMemcpyHostToDevice);
+    
+    int sum = 0;
+    int min_val = INT_MAX;
+    int max_val = INT_MIN;
 
-    dim3 threads(16, 16);
-    dim3 blocks((N+15)/16, (N+15)/16);
-    matMul<<<blocks, threads>>>(d_A, d_B, d_C, N);
+    #pragma omp parallel for reduction(+:sum)
+    for (int i = 0; i < n; i++) {
+        sum += arr[i];
+    }
 
-    cudaMemcpy(C, d_C, size, cudaMemcpyDeviceToHost);
+    
+    #pragma omp parallel for reduction(min:min_val)
+    for (int i = 0; i < n; i++) {
+        if (arr[i] < min_val)
+            min_val = arr[i];
+    }
 
-    printf("Result Matrix C:\n");
-    for (int i = 0; i < N*N; i++) {
-        printf("%f ", C[i]);
-        if ((i+1) % N == 0) printf("\n");
-    }
+  
+    #pragma omp parallel for reduction(max:max_val)
+    for (int i = 0; i < n; i++) {
+        if (arr[i] > max_val)
+            max_val = arr[i];
+    }
 
-    cudaFree(d_A);
-    cudaFree(d_B);
-    cudaFree(d_C);
-    return 0;
+    
+    float average = static_cast<float>(sum) / n;
+
+    
+    std::cout << "Sum     = " << sum << std::endl;
+    std::cout << "Average = " << average << std::endl;
+    std::cout << "Minimum = " << min_val << std::endl;
+    std::cout << "Maximum = " << max_val << std::endl;
+
+    return 0;
 }
