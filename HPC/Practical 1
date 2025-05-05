@@ -1,4 +1,3 @@
-//Parallel BFS & DFS
 #include<iostream>
 #include<vector>
 #include<queue>
