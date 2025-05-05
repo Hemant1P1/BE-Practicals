@@ -1,126 +1,100 @@
-//1bfs dfs
-#include <iostream>
-#include <vector>
-#include <queue>
-#include <chrono>
-#include <omp.h>
+//Parallel BFS & DFS
+#include<iostream>
+#include<vector>
+#include<queue>
+#include<stack>
+#include<omp.h>
+
 using namespace std;
-using namespace chrono;
-class TreeNode {
-public:
-    int val;
-    TreeNode *left, *right;
-    TreeNode(int x) : val(x), left(nullptr), right(nullptr) {}
-};
-// Function to create binary tree from level-order input
-TreeNode* buildTree(const vector<int>& nodes) {
-    if (nodes.empty() || nodes[0] == -1) return nullptr;
 
-    TreeNode* root = new TreeNode(nodes[0]);
-    queue<TreeNode*> q;
-    q.push(root);
+void parallelBFS(vector<vector<int>>&graph, int start)
+{
+    int n = graph.size();
+    vector<bool> visited(n, false);
 
-    int i = 1;
-    while (i < nodes.size()) {
-        TreeNode* current = q.front();
-        q.pop();
+    queue<int> q;
+    q.push(start);
 
-        if (nodes[i] != -1) {
-            current->left = new TreeNode(nodes[i]);
-            q.push(current->left);
-        }
-        i++;
+    while(!q.empty())
+    {
+        int size = q.size();
 
-        if (i < nodes.size() && nodes[i] != -1) {
-            current->right = new TreeNode(nodes[i]);
-            q.push(current->right);
-        }
-        i++;
-    }
-
-    return root;
-}
-// Parallel BFS on the tree
-void par_bfs(TreeNode* root) {
-    if (!root) return;
-
-    queue<TreeNode*> q;
-    q.push(root);
-
-    cout << "Parallel BFS: ";
-
-    while (!q.empty()) {
-        int level_size = q.size();
-
-        vector<TreeNode*> level_nodes;
-
-        // Extract nodes for this level
-        for (int i = 0; i < level_size; i++) {
-            TreeNode* node = q.front();
-            q.pop();
-            level_nodes.push_back(node);
-        }
-#pragma omp parallel for
-        for (int i = 0; i < level_nodes.size(); i++) {
-#pragma omp critical
-            cout << level_nodes[i]->val << " -> ";
-
-#pragma omp critical
+        #pragma omp parallel for
+        for (int i = 0; i < size; ++i)
+        {
+            int curr;
+            #pragma omp critical
             {
-                if (level_nodes[i]->left) q.push(level_nodes[i]->left);
-                if (level_nodes[i]->right) q.push(level_nodes[i]->right);
+                curr = q.front();
+                q.pop();
+            }
+
+            if(!visited[curr])
+            {
+                visited[curr] = true;
+                cout << curr << " ";
+
+                for(int neighbor:graph[curr])
+                {
+                    if(!visited[neighbor])
+                    {
+                        #pragma omp critical
+                        {
+                            q.push(neighbor);
+                        }
+                    }
+                }
             }
         }
     }
-    cout << endl;
 }
-// Parallel DFS using OpenMP sections
-void par_dfs(TreeNode* root) {
-    if (!root) return;
 
-#pragma omp critical
-    cout << root->val << " -> ";
-
-#pragma omp parallel sections
+void parallelDFS(vector<vector<int>>&graph, vector<bool>visited, int curr)
+{
+    if(!visited[curr])
     {
-#pragma omp section
-        if (root->left) par_dfs(root->left);
+        visited[curr] = true;
+        cout << curr << " ";
 
-#pragma omp section
-        if (root->right) par_dfs(root->right);
+        #pragma omp parallel for
+        for (int i = 0; i < graph[curr].size(); ++i)
+        {
+            int neighbor = graph[curr][i];
+            parallelDFS(graph, visited, neighbor);
+        }
     }
 }
+
 int main() {
-    // Construct a simple binary tree
-    TreeNode* root = new TreeNode(1);
-    root->left = new TreeNode(2);
-    root->right = new TreeNode(3);
-    root->left->left = new TreeNode(4);
-    root->left->right = new TreeNode(5);
-    root->right->left = new TreeNode(6);
-    root->right->right = new TreeNode(7);
-    /*int n;
+    int n, e;
     cout << "Enter number of nodes: ";
     cin >> n;
 
-    vector<int> nodes(n);
-    cout << "Enter node values in level-order (-1 for NULL):\n";
-    for (int i = 0; i < n; i++) {
-        cin >> nodes[i];
-    }
-    TreeNode* root = buildTree(nodes);
-*/
-    auto t1 = high_resolution_clock::now();
-    par_bfs(root);
-    auto t2 = high_resolution_clock::now();
-    cout << "Execution time for Parallel BFS: " << duration_cast<microseconds>(t2 - t1).count() << " microseconds\n";
+    cout << "Enter number of edges: ";
+    cin >> e;
 
-    auto t3 = high_resolution_clock::now();
-    cout << "Parallel DFS: ";
-    par_dfs(root);
+    vector<vector<int>> graph(n);
+
+    cout << "Enter edges (u v) for undirected graph:\n";
+    for (int i = 0; i < e; ++i) {
+        int u, v;
+        cin >> u >> v;
+        graph[u].push_back(v);
+        graph[v].push_back(u);
+    }
+
+    int start;
+    cout << "Enter the start node for BFS and DFS: ";
+    cin >> start;
+
+    cout << "Parallel BFS: ";
+    parallelBFS(graph, start);
     cout << endl;
-    auto t4 = high_resolution_clock::now();
-    cout << "Execution time for Parallel DFS: " << duration_cast<microseconds>(t4 - t3).count() << " microseconds\n";
+
+    cout << "Parallel DFS: ";
+    vector<bool> visited(n, false);
+    parallelDFS(graph, visited, start);
+    cout << endl;
+
     return 0;
 }
-
